@@ -1639,12 +1639,12 @@ static void __qseecom_clean_listener_sglistinfo(
 #define QSEECOM_WAKE_LISTENER_RCVWQ_MAX_ATTEMP     3
 
 static int __qseecom_retry_wake_up_listener_rcv_wq(
-	struct qseecom_registered_listener_list *ptr_svc)
+			struct qseecom_registered_listener_list *ptr_svc)
 {
 	int retry = 0;
 
 	while (ptr_svc->rcv_req_flag == 1 &&
-			 retry++ < QSEECOM_WAKE_LISTENER_RCVWQ_MAX_ATTEMP) {
+		retry++ < QSEECOM_WAKE_LISTENER_RCVWQ_MAX_ATTEMP) {
 		wake_up_interruptible(&ptr_svc->rcv_req_wq);
 		msleep(QSEECOM_WAKE_LISTENER_RCVWQ_DELAY);
 	}
@@ -1715,6 +1715,15 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 			pr_err("Service %d abort %d\n",
 						lstnr, ptr_svc->abort);
 			rc = -ENODEV;
+			status = QSEOS_RESULT_FAILURE;
+			goto err_resp;
+		}
+
+		if (ptr_svc->rcv_req_flag == 1 &&
+			__qseecom_retry_wake_up_listener_rcv_wq(ptr_svc)) {
+			pr_err("Service %d is not ready to receive request\n",
+					lstnr);
+			rc = -ENOENT;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -2026,6 +2035,15 @@ static int __qseecom_reentrancy_process_incomplete_cmd(
 			pr_err("Service %d abort %d\n",
 						lstnr, ptr_svc->abort);
 			rc = -ENODEV;
+			status = QSEOS_RESULT_FAILURE;
+			goto err_resp;
+		}
+
+		if (ptr_svc->rcv_req_flag == 1 &&
+			__qseecom_retry_wake_up_listener_rcv_wq(ptr_svc)) {
+			pr_err("Service %d is not ready to receive request\n",
+					lstnr);
+			rc = -ENOENT;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -3886,7 +3904,7 @@ static int qseecom_receive_req(struct qseecom_dev_handle *data)
 		if (wait_event_freezable(this_lstnr->rcv_req_wq,
 				__qseecom_listener_has_rcvd_req(data,
 				this_lstnr))) {
-			pr_debug("Interrupted: exiting Listener Service = %d\n",
+			pr_warn("Interrupted: exiting Listener Service = %d\n",
 						(uint32_t)data->listener.id);
 			/* woken up for different reason */
 			return -ERESTARTSYS;
@@ -7693,6 +7711,7 @@ static int qseecom_release(struct inode *inode, struct file *file)
 			data->type, data->mode, data);
 		switch (data->type) {
 		case QSEECOM_LISTENER_SERVICE:
+			pr_warn("release lsnr svc %d\n", data->listener.id);
 			__qseecom_listener_abort_all(1);
 			mutex_lock(&app_access_lock);
 			ret = qseecom_unregister_listener(data);
