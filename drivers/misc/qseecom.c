@@ -2154,13 +2154,6 @@ static int __qseecom_reentrancy_process_incomplete_cmd(
 		}
 
 		pr_debug("waking up rcv_req_wq and waiting for send_resp_wq\n");
-		if ((ptr_svc->rcv_req_flag == 1) &&
-			(__qseecom_retry_wake_up_listener_rcv_wq(ptr_svc))) {
-			pr_err("Service %d is not ready to rcv req\n", lstnr);
-			__qseecom_qseos_fail_return_resp_tz(data, resp,
-					&send_data_rsp, NULL, lstnr);
-			return -EINVAL;
-		}
 
 		/* initialize the new signal mask with all signals*/
 		sigfillset(&new_sigset);
